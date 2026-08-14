@@ -1,4 +1,4 @@
 {
   "_ayuda": "PANEL DE ADMIN: un código por persona. Agregar código = dar de alta. Borrar código = bloquear. Lista vacía = sin bloqueo. Edita este archivo en github.com y guarda (Commit changes); en ~1 minuto todos los teléfonos obedecen la nueva lista.",
-  "codigos": ["DANIEL=1100"]
+  "codigos": ["DANIEL-1100"]
 }
