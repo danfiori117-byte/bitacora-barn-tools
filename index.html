@@ -137,6 +137,24 @@
   .optrow .t{font-size:15.5px; font-weight:600;}
   .optrow .d{font-size:12.5px; color:var(--ink3); margin-top:2px; line-height:1.4;}
   hr.s{border:none; border-top:1px solid var(--line); margin:6px 0;}
+  details.xtimes{background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:0 14px; margin-top:20px;}
+  details.xtimes summary{cursor:pointer; list-style:none; padding:14px 0; font-size:14.5px;
+    font-weight:600; color:var(--ink2); display:flex; align-items:center; gap:7px; flex-wrap:wrap;}
+  details.xtimes summary::before{content:"▸"; color:var(--ink3); transition:transform .15s;}
+  details.xtimes[open] summary::before{transform:rotate(90deg);}
+  details.xtimes .f{margin-top:6px;}
+  details.xtimes .row{margin-bottom:12px;}
+  /* lock screen */
+  #lockScreen{position:fixed; inset:0; z-index:200; background:var(--bg); display:none;
+    flex-direction:column; align-items:center; justify-content:center; padding:30px; text-align:center;}
+  #lockScreen.on{display:flex;}
+  #lockScreen svg{width:52px; height:52px; stroke:var(--accent); fill:none; stroke-width:1.8; margin-bottom:14px;}
+  #lockScreen h2{margin:0 0 6px; font-size:20px;}
+  #lockScreen p{margin:0 0 20px; color:var(--ink3); font-size:14px; line-height:1.5;}
+  #lockScreen input{max-width:280px; text-align:center; font-size:20px; letter-spacing:2px;}
+  #lockScreen .btn{max-width:280px; margin-top:14px;}
+  #lockErr{color:var(--danger); font-size:13.5px; font-weight:600; margin-top:12px; min-height:18px;}
 </style>
 </head>
 <body>
@@ -186,7 +204,7 @@
     <div class="optrow" style="margin-top:10px">
       <div>
         <div class="t">Incluir notas privadas</div>
-        <div class="d">Include private notes — actívalo solo para tu propio dashboard. Apágalo si vas a compartir el archivo.</div>
+        <div class="d">Include private notes — solo aplica al JSON de tu dashboard. La hoja semanal (CSV) nunca lleva notas ni duración.</div>
       </div>
       <label class="switch"><input type="checkbox" id="expNotes" checked><i></i></label>
     </div>
@@ -195,7 +213,7 @@
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Exportar JSON (para el dashboard)
     </button>
-    <button class="btn ghost" id="btnExpCSV">Exportar CSV (Excel / hoja de cálculo)</button>
+    <button class="btn ghost" id="btnExpCSV">Exportar hoja semanal (CSV para copiar a tu hoja)</button>
   </div>
   <div class="card" style="border-style:dashed">
     <div style="font-size:14px; color:var(--ink2); line-height:1.55">
@@ -259,6 +277,30 @@
       <button class="btn now" id="btnEndNow">⏱ Ahora</button>
     </div>
 
+    <details class="xtimes" id="extraTimes">
+      <summary>Horarios de la hoja semanal <span class="en">/ Weekly sheet times</span> <span class="opt">— opcional</span></summary>
+      <label class="f">Salida del Airbnb <span class="en">/ Time departure Airbnb</span></label>
+      <div class="row">
+        <input type="time" id="fDep">
+        <button class="btn now" id="btnDepNow">⏱ Ahora</button>
+      </div>
+      <label class="f">Lunch (inicio) <span class="en">/ Lunch</span></label>
+      <div class="row">
+        <input type="time" id="fLunch">
+        <button class="btn now" id="btnLunchNow">⏱ Ahora</button>
+      </div>
+      <label class="f">Lunch (fin) <span class="en">/ End lunch</span></label>
+      <div class="row">
+        <input type="time" id="fLunchEnd">
+        <button class="btn now" id="btnLunchEndNow">⏱ Ahora</button>
+      </div>
+      <label class="f">Fin de viaje <span class="en">/ End travel</span></label>
+      <div class="row">
+        <input type="time" id="fTravel">
+        <button class="btn now" id="btnTravelNow">⏱ Ahora</button>
+      </div>
+    </details>
+
     <label class="f">Notas privadas — qué se corrigió <span class="en">/ Private notes — what was fixed</span></label>
     <textarea id="fNotes" placeholder="Ej. Bin 4: sensor recalibrado, cable dañado reemplazado…"></textarea>
     <div class="note-privacy">
@@ -287,6 +329,16 @@
   </div>
 </div>
 
+<!-- ============ LOCK SCREEN (código de acceso) ============ -->
+<div id="lockScreen">
+  <svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>
+  <h2>App protegida</h2>
+  <p>Ingresa el código de acceso que te dio el administrador.<br><i>Enter the access code from your admin.</i></p>
+  <input type="password" id="lockInput" placeholder="Código" autocomplete="off" inputmode="text">
+  <button class="btn" id="lockBtn">Entrar · Enter</button>
+  <div id="lockErr"></div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <nav class="tabs">
@@ -310,7 +362,19 @@
    Bitácora de Campo · Field Log — 100% local (localStorage)
    Schema: see exportJSON()
    ============================================================ */
-const LS = { team:"fbl_team_v1", recs:"fbl_records_v1", setup:"fbl_setup_v1" };
+/* ⚙️⚙️⚙️ CONTROL DE ACCESO POR USUARIO ⚙️⚙️⚙️
+   El panel de admin es el archivo usuarios.json (junto a este archivo):
+     { "codigos": ["DANY-7741", "MIGUEL-2385", "ROBERTO-9102"] }
+   - DAR DE ALTA: agrega un código a la lista y compárteselo a esa persona.
+   - BLOQUEAR: borra su código. La próxima vez que abra la app (con internet)
+     quedará fuera; los demás siguen normal. No hace falta tocar este archivo.
+   - Lista vacía = sin bloqueo.
+   La lista de abajo solo es un respaldo por si usuarios.json no existe
+   (p. ej. usando la app como archivo local sin GitHub). */
+const ACCESS_CODES = [];
+
+const LS = { team:"fbl_team_v1", recs:"fbl_records_v1", setup:"fbl_setup_v1",
+  access:"fbl_access_v1", accessList:"fbl_accesslist_v1" };
 const $ = id => document.getElementById(id);
 
 let team = load(LS.team, []);
@@ -434,6 +498,11 @@ function openRec(id){
   $("fDate").value  = r ? r.date : todayStr();
   $("fArr").value   = r ? (r.timeArrived||"") : nowTime();
   $("fEnd").value   = r ? (r.timeEnd||"") : "";
+  $("fDep").value      = r ? (r.timeDeparture||"") : "";
+  $("fLunch").value    = r ? (r.lunchStart||"") : "";
+  $("fLunchEnd").value = r ? (r.lunchEnd||"") : "";
+  $("fTravel").value   = r ? (r.endTravel||"") : "";
+  $("extraTimes").open = !!(r && (r.timeDeparture || r.lunchStart || r.lunchEnd || r.endTravel));
   $("fNotes").value = r ? (r.notes||"") : "";
   $("btnDelRec").style.display = r ? "flex" : "none";
 
@@ -451,6 +520,10 @@ function openRec(id){
 $("btnNew").addEventListener("click", ()=>openRec(null));
 $("btnArrNow").addEventListener("click", ()=>{ $("fArr").value = nowTime(); });
 $("btnEndNow").addEventListener("click", ()=>{ $("fEnd").value = nowTime(); });
+$("btnDepNow").addEventListener("click", ()=>{ $("fDep").value = nowTime(); });
+$("btnLunchNow").addEventListener("click", ()=>{ $("fLunch").value = nowTime(); });
+$("btnLunchEndNow").addEventListener("click", ()=>{ $("fLunchEnd").value = nowTime(); });
+$("btnTravelNow").addEventListener("click", ()=>{ $("fTravel").value = nowTime(); });
 $("btnCancelRec").addEventListener("click", closeSheets);
 $("recSheet").addEventListener("click", e=>{ if(e.target===$("recSheet")) closeSheets(); });
 function closeSheets(){ document.querySelectorAll(".sheet-wrap").forEach(s=>s.classList.remove("open")); }
@@ -461,11 +534,14 @@ $("btnSaveRec").addEventListener("click", ()=>{
   if(!site){ toast("⚠️ Falta el nombre del sitio · Site name required"); $("fSite").focus(); return; }
   if(!date){ toast("⚠️ Falta la fecha · Date required"); return; }
   const now = new Date().toISOString();
+  const vals = { site, date, timeArrived:$("fArr").value||"", timeEnd:$("fEnd").value||"",
+    timeDeparture:$("fDep").value||"", lunchStart:$("fLunch").value||"",
+    lunchEnd:$("fLunchEnd").value||"", endTravel:$("fTravel").value||"",
+    notes:$("fNotes").value.trim(), updatedAt:now };
   if(editingId){
-    const r = recs.find(x=>x.id===editingId);
-    Object.assign(r, { site, date, timeArrived:$("fArr").value||"", timeEnd:$("fEnd").value||"", notes:$("fNotes").value.trim(), updatedAt:now });
+    Object.assign(recs.find(x=>x.id===editingId), vals);
   }else{
-    recs.push({ id:uid(), site, date, timeArrived:$("fArr").value||"", timeEnd:$("fEnd").value||"", notes:$("fNotes").value.trim(), createdAt:now, updatedAt:now });
+    recs.push({ id:uid(), createdAt:now, ...vals });
   }
   save(LS.recs, recs);
   closeSheets(); renderToday(); renderHistory();
@@ -532,7 +608,9 @@ $("btnExpJSON").addEventListener("click", ()=>{
   const withNotes = $("expNotes").checked;
   const [a,b] = exportBounds();
   const rows = exportRecs().map(r=>{
-    const o = { id:r.id, date:r.date, site:r.site, timeArrived:r.timeArrived, timeEnd:r.timeEnd, durationMin:durMin(r), createdAt:r.createdAt, updatedAt:r.updatedAt };
+    const o = { id:r.id, date:r.date, site:r.site, timeArrived:r.timeArrived, timeEnd:r.timeEnd,
+      timeDeparture:r.timeDeparture||"", lunchStart:r.lunchStart||"", lunchEnd:r.lunchEnd||"",
+      endTravel:r.endTravel||"", durationMin:durMin(r), createdAt:r.createdAt, updatedAt:r.updatedAt };
     if(withNotes) o.notes = r.notes;
     return o;
   });
@@ -544,16 +622,30 @@ $("btnExpJSON").addEventListener("click", ()=>{
   };
   deliver(`bitacora_${stamp()}.json`, JSON.stringify(payload,null,2), "application/json");
 });
+/* CSV con el formato de la hoja semanal original:
+   Date | Team (una columna por persona) | Farm | Time departoure Airbnb |
+   Time Arrived to the site | Time End Jobs | Lunch | End Lunch | End Travel
+   — sin duración ni notas; fila en blanco entre días, como en la hoja. */
 $("btnExpCSV").addEventListener("click", ()=>{
-  const withNotes = $("expNotes").checked;
   const q = s => `"${String(s??"").replaceAll('"','""')}"`;
-  const head = ["date","site","time_arrived","time_end","duration_min"].concat(withNotes?["notes"]:[]);
+  const usDate = d => { const [y,m,dd] = d.split("-"); return `${m}/${dd}/${y}`; };
+  const nTeam = Math.max(1, team.length);
+  const head = ["Date"]
+    .concat(Array(nTeam).fill("Team"))
+    .concat(["Farm","Time departoure Airbnb","Time Arrived to the site","Time End Jobs","Lunch","End Lunch","End Travel"]);
   const lines = [head.join(",")];
+  const blank = Array(head.length).fill("").join(",");
+  let lastDate = "";
   for(const r of exportRecs()){
-    const row = [r.date, q(r.site), r.timeArrived, r.timeEnd, durMin(r) ?? ""].concat(withNotes?[q(r.notes)]:[]);
+    if(lastDate && r.date !== lastDate) lines.push(blank);
+    lastDate = r.date;
+    const row = [usDate(r.date)]
+      .concat((team.length?team:[""]).map(q))
+      .concat([q(r.site), r.timeDeparture||"", r.timeArrived||"", r.timeEnd||"",
+               r.lunchStart||"", r.lunchEnd||"", r.endTravel||""]);
     lines.push(row.join(","));
   }
-  deliver(`bitacora_${stamp()}.csv`, "﻿"+lines.join("\r\n"), "text/csv");
+  deliver(`hoja_semanal_${stamp()}.csv`, "﻿"+lines.join("\r\n"), "text/csv");
 });
 
 /* ---------------- Settings / team ---------------- */
@@ -568,7 +660,8 @@ function renderSettings(){
   ed.innerHTML = (team.length?team:[""]).map(teamRow).join("");
   bindTeamRows(ed);
   const bytes = (localStorage.getItem(LS.recs)||"").length;
-  $("dataInfo").textContent = `${recs.length} registros · ${(bytes/1024).toFixed(1)} KB en este teléfono`;
+  $("dataInfo").textContent = `${recs.length} registros · ${(bytes/1024).toFixed(1)} KB en este teléfono` +
+    (typeof storagePersisted!=="undefined" && storagePersisted ? " · 🛡 almacenamiento protegido" : "");
 }
 function bindTeamRows(ed){
   ed.querySelectorAll(".del").forEach(b=>b.addEventListener("click", ()=>{
@@ -603,7 +696,9 @@ $("fileRestore").addEventListener("change", async e=>{
     for(const r of data.records){
       if(!r.id || !r.date || !r.site) continue;
       const cur = byId.get(r.id);
-      const rec = { id:r.id, date:r.date, site:r.site, timeArrived:r.timeArrived||"", timeEnd:r.timeEnd||"", notes:r.notes||"", createdAt:r.createdAt||new Date().toISOString(), updatedAt:r.updatedAt||new Date().toISOString() };
+      const rec = { id:r.id, date:r.date, site:r.site, timeArrived:r.timeArrived||"", timeEnd:r.timeEnd||"",
+        timeDeparture:r.timeDeparture||"", lunchStart:r.lunchStart||"", lunchEnd:r.lunchEnd||"", endTravel:r.endTravel||"",
+        notes:r.notes||"", createdAt:r.createdAt||new Date().toISOString(), updatedAt:r.updatedAt||new Date().toISOString() };
       if(!cur){ byId.set(r.id, rec); added++; }
       else if((r.updatedAt||"") > (cur.updatedAt||"")){ byId.set(r.id, rec); updated++; }
     }
@@ -645,7 +740,60 @@ $("btnSetupDone").addEventListener("click", ()=>{
   toast("✓ Listo, ¡a trabajar! · Ready!");
 });
 
+/* ---------------- Access lock ---------------- */
+/* Lista efectiva de códigos:
+   1º usuarios.json fresco del servidor (el admin lo edita en GitHub),
+   2º la última copia guardada (para abrir sin señal en el campo),
+   3º la constante ACCESS_CODES (uso local sin GitHub). */
+async function getAccessList(){
+  if(location.protocol.startsWith("http")){
+    try{
+      const res = await fetch("usuarios.json?v="+Date.now(), {cache:"no-store"});
+      if(res.ok){
+        const j = await res.json();
+        const list = Array.isArray(j) ? j : (Array.isArray(j.codigos) ? j.codigos : []);
+        localStorage.setItem(LS.accessList, JSON.stringify(list));
+        return list;
+      }
+    }catch(e){ /* sin internet: usar copia local */ }
+    try{
+      const c = JSON.parse(localStorage.getItem(LS.accessList));
+      if(Array.isArray(c)) return c;
+    }catch(e){}
+  }
+  return ACCESS_CODES;
+}
+async function checkLock(){
+  const codes = await getAccessList();
+  if(!codes.length) return;
+  /* Se re-valida en cada arranque: si el admin quitó tu código de la lista,
+     la app se vuelve a bloquear aunque hayas entrado antes. */
+  if(codes.includes(localStorage.getItem(LS.access))) return;
+  localStorage.removeItem(LS.access);
+  $("lockScreen").classList.add("on");
+  const tryCode = ()=>{
+    const v = $("lockInput").value.trim();
+    if(codes.includes(v)){
+      localStorage.setItem(LS.access, v);
+      $("lockScreen").classList.remove("on");
+    } else {
+      $("lockErr").textContent = "Código incorrecto · Wrong code";
+      $("lockInput").value = ""; $("lockInput").focus();
+    }
+  };
+  $("lockBtn").addEventListener("click", tryCode);
+  $("lockInput").addEventListener("keydown", e=>{ if(e.key==="Enter") tryCode(); });
+}
+
 /* ---------------- Boot ---------------- */
+checkLock();
+/* Pedir almacenamiento persistente: el navegador se compromete a NO borrar
+   los datos automáticamente (historial protegido). */
+let storagePersisted = false;
+if(navigator.storage && navigator.storage.persist){
+  navigator.storage.persist().then(ok=>{ storagePersisted = ok;
+    if(document.querySelector("#scr-settings.active")) renderSettings(); }).catch(()=>{});
+}
 if(!load(LS.setup,false)){ renderSetupNames(); $("setupSheet").classList.add("open"); }
 renderToday(); renderExport();
 
