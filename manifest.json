@@ -1,0 +1,15 @@
+{
+  "name": "Bitácora de Campo · Field Log",
+  "short_name": "Bitácora",
+  "description": "Registro diario de visitas a sitios: feed bins, sensores y gateways. 100% local.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d1b2a",
+  "theme_color": "#0d1b2a",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
